@@ -17,50 +17,53 @@ from collections import defaultdict
 __version__ = '1.0'
 
 
-class State:
+class PotState:
+    def __init__(self):
+        self.last_watering_time = None
+        self.dry_spell_start_time = None
+
+
+class StateManager:
     STATE_FILE = "test.status"
     # FIXME
     #STATE_FILE = "/var/lock/watering_station.status"
 
     def __init__(self):
-        self.set_default_state()
+        self.pot_states = {}
 
 
-    def set_default_state(self):
-        self.fixme = "FIXME"
+    def create_new_state(self, pot_names):
+        for name in pot_names:
+            self.pot_states[name] = PotState()
+
+
+    def get_pot_state(self, pot_name):
+        return self.pot_states[name]
 
 
     def load(self):
-        try:
-            with open(State.STATE_FILE, "rb") as f:
-                [self.fixme] = pickle.load(f)
+        #try:
+        with open(State.STATE_FILE, "rb") as f:
+            self.pot_states = pickle.load(f)
 
-        except Exception as e:
-            self.set_default_state()
+        #except Exception as e:
+        #    self.set_default_state()
 
-        logging.debug("Status read: %s", self)
+        logging.debug("Loaded state: %s", self)
 
 
     def save(self):
         with open(State.STATE_FILE, "wb") as f:
-            pickle.dump([self.fixme], f)
+            pickle.dump(self.pot_states, f)
 
 
     def __str__(self):
-        s = "["
+        s = "=== STATE ===================\n"
 
-        if self.disconnected_since:
-            s += self.disconnected_since.strftime("DISCONNECTED since [%c]")
-        else:
-            s += "CONNECTED"
+        for name, state in self.pot_states.iteritems():
+            s += "%-16s  %s\n" % (name, state)
 
-        if self.next_reboot:
-            s += self.next_reboot.strftime("; will reboot on [%c]")
-
-        if self.current_delay:
-            s += "; delay: %d h" % self.current_delay
-
-        s += "]"
+        s += "============================="
         return s
 
 
@@ -141,20 +144,36 @@ class Config:
 def main(args):
     "Main entry point."
 
-    state = State()
-    state.load()
     config = Config()
     config.load(args.config_file)
+    pot_names = config.get_pot_names()
 
-    targets = config.targets()
+    state_mgr = StateManager()
 
-    for tgt in targets:
-        sensor_state = state.get_sensor_state[sname]
-        sensor_config = config[sname]
+    try:
+        state_mgr.load()
 
-        # make a decision based on sensor state and config
+    except Exception ex:
+        state_mgr.create_new_state(pot_names)
 
-        # act on decision
+    for name in pot_names:
+        pot_config = config.get_pot_config(name)
+        pot_state = state_mgr.get_pot_state(name)
+
+        sensor_reading = get_sensor_reading(cfg)
+        pot_state.last_sensor_reading_time = datetime.datetime.now()
+        needs_watering = update_state_and_decide(sensor_reading,
+                                                 pot_config,
+                                                 pot_state)
+
+        if needs_watering:
+            logging.verbose("will water pot %s", name)
+            water_pot(pot_config)
+            pot_state.last_watering_time = datetime.datetime.now()
+            time.sleep(SECOND_READING_DELAY)
+            sensor_reading = get_sensor_reading(cfg)
+
+
 
         # record new data
 
