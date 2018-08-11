@@ -6,12 +6,15 @@
 """
 
 import argparse
+import datetime
 import configparser
 import logging
 import os
 import pickle
 import sys
 from collections import defaultdict
+
+import dummy_ops as ops
 
 
 __version__ = '1.0'
@@ -38,12 +41,12 @@ class StateManager:
 
 
     def get_pot_state(self, pot_name):
-        return self.pot_states[name]
+        return self.pot_states[pot_name]
 
 
     def load(self):
         #try:
-        with open(State.STATE_FILE, "rb") as f:
+        with open(StateManager.STATE_FILE, "rb") as f:
             self.pot_states = pickle.load(f)
 
         #except Exception as e:
@@ -53,7 +56,7 @@ class StateManager:
 
 
     def save(self):
-        with open(State.STATE_FILE, "wb") as f:
+        with open(StateManager.STATE_FILE, "wb") as f:
             pickle.dump(self.pot_states, f)
 
 
@@ -77,14 +80,16 @@ class Config:
 
 
     def __init__(self):
-        self.target_names = []
-        self.sensor_dry_level = defaultdict(int)
-        self.max_dry_hours = defaultdict(int)
-        self.watering_duration = defaultdict(int)
+        self.pot_names = []
+        self.pot_configs = {}
 
 
-    def targets(self):
-        return self.target_names
+    def get_pot_names(self):
+        return self.pot_names
+
+
+    def get_pot_config(self, name):
+        return self.pot_configs[name]
 
 
     def load(self, filename):
@@ -94,50 +99,86 @@ class Config:
 
         cfg = configparser.ConfigParser()
         cfg.read(filename)
-        self.sensor_names = cfg["general"]["pots"].split()
+        self.pot_names = cfg["general"]["pots"].split()
+        already_configured_channels = []
 
-        for sname in self.sensor_names:
+        for sname in self.pot_names:
+            pot_config = {}
+
+            if "description" in cfg[sname]:
+                pot_config["description"] = cfg[sname]["description"]
+            else:
+                pot_config["description"] = sname
 
             # sensor level for "dry"
 
-            if "SensorDryLevel" in cfg[sname]:
-                dry_level = int(cfg[sname]["SensorDryLevel"])
-            else:
-                dry_level = Config.DEFAULT_SENSOR_DRY_LEVEL
-
-            if dry_level < 1:
-                logging.fatal("bad SensorDryLevel for %s", sname)
-                sys.exit(1)
-
-            self.sensor_dry_level[sname] = dry_level
+            value = self._parse_parameter(cfg[sname],
+                                          "SensorDryLevel",
+                                          Config.DEFAULT_SENSOR_DRY_LEVEL,
+                                          bounds = [1, 1000000])
+            pot_config['SensorDryLevel'] = value
 
             # max dry period
 
-            if "MaxDryPeriod" in cfg[sname]:
-                dry_hours = int(cfg[sname]["MaxDryPeriod"])
-            else:
-                dry_hours = Config.DEFAULT_MAX_DRY_HOURS
-
-            if dry_hours < 1 or dry_hours > Config.MAX_DRY_HOURS:
-                logging.fatal("bad MaxDryPeriod for %s", sname)
-                sys.exit(1)
-
-            self.max_dry_hours[sname] = dry_hours
+            value = self._parse_parameter(cfg[sname],
+                                          "MaxDryPeriod",
+                                          Config.DEFAULT_MAX_DRY_HOURS,
+                                          bounds = [1, Config.MAX_DRY_HOURS])
+            pot_config["MaxDryPeriod"] = value
 
             # watering duration
 
-            if "WateringDuration" in cfg[sname]:
-                watering_dur = int(cfg[sname]["WateringDuration"])
-            else:
-                watering_dur = Config.DEFAULT_WATERING_DURATION
+            value = self._parse_parameter(cfg[sname],
+                                          "WateringDuration",
+                                          Config.DEFAULT_WATERING_DURATION,
+                                          bounds = [1, Config.MAX_WATERING_DURATION])
+            pot_config["WateringDuration"] = value
 
-            if watering_dur < 1 or \
-                    watering_dur > Config.MAX_WATERING_DURATION:
-                logging.fatal("bad WateringDuration for %s", sname)
+            # ADC channel
+
+            value = self._parse_parameter(cfg[sname],
+                                          "ADCChannel",
+                                          -1,
+                                          bounds = [0, 3])
+
+            if value in already_configured_channels:
+                logging.fatal("duplicate ADC channel: %d", value)
                 sys.exit(1)
 
-            self.watering_duration[sname] = watering_dur
+            pot_config["ADCChannel"] = value
+            already_configured_channels.append(value)
 
+            self.pot_configs[sname] = pot_config
+
+
+    def _parse_parameter(self, cfg, key, default_val, bounds = None):
+        if key in cfg:
+            value = int(cfg[key])
+        else:
+            value = default_val
+
+        if bounds and (value < bounds[0] or value > bounds[1]):
+            logging.fatal("bad value for %s: %d", key, value)
+            sys.exit(1)
+
+        return value
+
+
+
+def update_state_and_decide(new_reading, pot_config, pot_state):
+    if new_reading >= pot_config["SensorDryLevel"]:
+        if not pot_state.dry_spell_start_time:
+            pot_state.dry_spell_start_time = datetime.datetime.now()
+            logging.debug("dry spell started for pot %s",
+                          pot_config['description'])
+    else:
+        pot_state.dry_spell_start_time = None
+        logging.debug("dry spell stopped for pot %s",
+                      pot_config['description'])
+        return False
+
+    diff = datetime.datetime.now() - pot_state.dry_spell_start_time
+    print(diff.hours)
 
 
 
@@ -153,14 +194,14 @@ def main(args):
     try:
         state_mgr.load()
 
-    except Exception ex:
+    except Exception as ex:
         state_mgr.create_new_state(pot_names)
 
     for name in pot_names:
         pot_config = config.get_pot_config(name)
         pot_state = state_mgr.get_pot_state(name)
 
-        sensor_reading = get_sensor_reading(cfg)
+        sensor_reading = ops.get_sensor_reading(pot_config)
         pot_state.last_sensor_reading_time = datetime.datetime.now()
         needs_watering = update_state_and_decide(sensor_reading,
                                                  pot_config,
@@ -168,10 +209,10 @@ def main(args):
 
         if needs_watering:
             logging.verbose("will water pot %s", name)
-            water_pot(pot_config)
+            ops.water_pot(pot_config)
             pot_state.last_watering_time = datetime.datetime.now()
             time.sleep(SECOND_READING_DELAY)
-            sensor_reading = get_sensor_reading(cfg)
+            sensor_reading = ops.get_sensor_reading(cfg)
 
 
 
@@ -179,7 +220,7 @@ def main(args):
 
         # update state
 
-    state.save()
+    state_mgr.save()
 
 
 
