@@ -1,6 +1,16 @@
+"""Abstraction for hardware-related operations.
+"""
+
+__author__ = "Alexander L. Belikoff"
+__email__ = "abelikoff@gmail.com"
+__copyright__ = "Copyright 2018, Alexander L. Belikoff"
+__license__ = "GPLv3"
+
 import builtins
 import logging
 import time
+
+# When in fake mode (as set by the caller), use fake modules.
 
 if hasattr(builtins, "FAKE_HARDWARE_MODE"):
     import FakeGPIO as GPIO
@@ -24,17 +34,20 @@ class HardwareManager:
 
 
     def __init__(self):
-
         self.gpio_initialized = False
         self.adc = None
 
 
-    def cleanup(self):
+    def __del__(self):
         self.__cleanup_adc()
         self.__cleanup_gpio()
 
 
     def read_sensor(self, pot_config):
+        """
+        Read moisture sensor for a given pot. Return sensor reading.
+        """
+
         self.__init_adc()
         channel = pot_config["ADCChannel"]
 
@@ -50,6 +63,10 @@ class HardwareManager:
 
 
     def water_pot(self, pot_config):
+        """
+        Water the specified pot.
+        """
+
         self.__init_gpio()
         pin = pot_config['RelayBCMPin']
         duration = pot_config['WateringDuration']
@@ -71,6 +88,10 @@ class HardwareManager:
 
 
     def __init_gpio(self):
+        """
+        Initialize the GPIO module.
+        """
+
         if self.gpio_initialized:
             return
 
@@ -80,6 +101,10 @@ class HardwareManager:
 
 
     def __cleanup_gpio(self):
+        """
+        Shutdown the GPIO module.
+        """
+
         if not self.gpio_initialized:
             return
 
@@ -88,8 +113,11 @@ class HardwareManager:
         self.gpio_initialized = False
 
 
-
     def __init_adc(self):
+        """
+        Initialize the ADC.
+        """
+
         if self.adc:
             return
 
@@ -98,6 +126,10 @@ class HardwareManager:
 
 
     def __cleanup_adc(self):
+        """
+        Shutdown the ADC.
+        """
+
         if not self.adc:
             return
 

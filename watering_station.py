@@ -1,9 +1,25 @@
 #!/usr/bin/env python3
 """
+Monitor moisture level of multiple pots and water them when needed.
 
-<<<PROGRAM DESCRIPTION>>>
+Usage:
+    See the help screen ('watering_station.py -h') for options.
 
+    The program is intended to be run periodically (i.e. via cron). It
+    keeps the state between runs.
+
+Configuration:
+    Configuration is done via a config file (by default,
+    ~/.watering_station.config or specified via '-c' option). See the supplied
+    config file for example configuration.
 """
+
+__version__ = "1.0"
+__author__ = "Alexander L. Belikoff"
+__email__ = "abelikoff@gmail.com"
+__copyright__ = "Copyright 2018, Alexander L. Belikoff"
+__license__ = "GPLv3"
+
 
 import argparse
 import builtins
@@ -14,9 +30,6 @@ import os
 import pickle
 import sys
 import time
-
-
-__version__ = "1.0"
 
 
 class PotState:
@@ -191,9 +204,21 @@ class Config:
         return value
 
 
-
 def update_state_and_decide(new_reading, pot_config, pot_state):
-    if new_reading < pot_config["SensorDryLevel"]:
+    """
+    Use the new sensor reading to update the pot state and to decide
+    whether watering is needed.
+
+    Args:
+        new_reading: New sensor reading.
+        pot_config: Pot configuration.
+        pot_state: Pot state.
+
+    Returns:
+        True, if watering is needed; otherwise False.
+    """
+
+    if new_reading < pot_config["SensorDryLevel"]: # soil is wet enough
         if pot_state.dry_spell_start_time:
             pot_state.dry_spell_start_time = None
             logging.debug("dry spell stopped for pot %s",
@@ -223,9 +248,7 @@ def update_state_and_decide(new_reading, pot_config, pot_state):
     return True
 
 
-
 def main(args):
-    "Main entry point."
 
     SECOND_READING_DELAY = 30   # after watering, delay and read again
     config = Config()
@@ -269,13 +292,13 @@ def main(args):
         # record new data
 
         # update state
-    hw_manager.cleanup()
     state_mgr.save()
 
 
-
 def _parse_args():
-    "Parse command line args."
+    """
+    Parse command line args.
+    """
 
     parser = argparse.ArgumentParser(
         description=globals()["__doc__"],
