@@ -12,6 +12,7 @@ import logging
 import os
 import pickle
 import sys
+import time
 from collections import defaultdict
 
 import dummy_ops as ops
@@ -24,6 +25,19 @@ class PotState:
     def __init__(self):
         self.last_watering_time = None
         self.dry_spell_start_time = None
+
+
+    def __str__(self):
+        s = "["
+
+        if self.last_watering_time:
+            s += self.last_watering_time.strftime("last watered: %Y-%m-%d %H:%M:%S")
+
+        if self.dry_spell_start_time:
+            s += self.dry_spell_start_time.strftime("dry since: %Y-%m-%d %H:%M:%S")
+
+        s += "]"
+        return s
 
 
 class StateManager:
@@ -52,7 +66,7 @@ class StateManager:
         #except Exception as e:
         #    self.set_default_state()
 
-        logging.debug("Loaded state: %s", self)
+        logging.debug("Loaded state:\n%s", self)
 
 
     def save(self):
@@ -63,7 +77,7 @@ class StateManager:
     def __str__(self):
         s = "=== STATE ===================\n"
 
-        for name, state in self.pot_states.iteritems():
+        for name, state in self.pot_states.items():
             s += "%-16s  %s\n" % (name, state)
 
         s += "============================="
@@ -101,6 +115,7 @@ class Config:
         cfg.read(filename)
         self.pot_names = cfg["general"]["pots"].split()
         already_configured_channels = []
+        already_configured_pins = []
 
         for sname in self.pot_names:
             pot_config = {}
@@ -148,6 +163,20 @@ class Config:
             pot_config["ADCChannel"] = value
             already_configured_channels.append(value)
 
+            # Relay pin
+
+            value = self._parse_parameter(cfg[sname],
+                                          "RelayBCMPin",
+                                          -1,
+                                          bounds = [0, 50])
+
+            if value in already_configured_pins:
+                logging.fatal("duplicate relay pin: %d", value)
+                sys.exit(1)
+
+            pot_config["RelayBCMPin"] = value
+            already_configured_pins.append(value)
+
             self.pot_configs[sname] = pot_config
 
 
@@ -166,25 +195,41 @@ class Config:
 
 
 def update_state_and_decide(new_reading, pot_config, pot_state):
-    if new_reading >= pot_config["SensorDryLevel"]:
-        if not pot_state.dry_spell_start_time:
-            pot_state.dry_spell_start_time = datetime.datetime.now()
-            logging.debug("dry spell started for pot %s",
+    if new_reading < pot_config["SensorDryLevel"]:
+        if pot_state.dry_spell_start_time:
+            pot_state.dry_spell_start_time = None
+            logging.debug("dry spell stopped for pot %s",
                           pot_config['description'])
-    else:
-        pot_state.dry_spell_start_time = None
-        logging.debug("dry spell stopped for pot %s",
-                      pot_config['description'])
+        else:
+            logging.debug("pot %s still moist enough",
+                          pot_config['description'])
+
         return False
 
-    diff = datetime.datetime.now() - pot_state.dry_spell_start_time
-    print(diff.hours)
+    # From this point on we are dealing with dry soil
+
+    num_dry_hours = 0
+
+    if not pot_state.dry_spell_start_time:
+        pot_state.dry_spell_start_time = datetime.datetime.now()
+        logging.debug("dry spell started for pot %s",
+                      pot_config['description'])
+    else:
+        num_dry_hours = datetime.datetime.now() - pot_state.dry_spell_start_time
+        num_dry_hours = num_dry_hours.total_seconds() / 3600.0
+        logging.debug("dry spell for %.1f hrs for pot %s (since %s)",
+                      num_dry_hours,
+                      pot_config['description'],
+                      pot_state.dry_spell_start_time.strftime("%Y-%m-%d %H:%M"))
+
+    return True
 
 
 
 def main(args):
     "Main entry point."
 
+    SECOND_READING_DELAY = 30   # after watering, delay and read again
     config = Config()
     config.load(args.config_file)
     pot_names = config.get_pot_names()
@@ -208,11 +253,11 @@ def main(args):
                                                  pot_state)
 
         if needs_watering:
-            logging.verbose("will water pot %s", name)
+            logging.info("will water pot %s", name)
             ops.water_pot(pot_config)
             pot_state.last_watering_time = datetime.datetime.now()
             time.sleep(SECOND_READING_DELAY)
-            sensor_reading = ops.get_sensor_reading(cfg)
+            sensor_reading = ops.get_sensor_reading(pot_config)
 
 
 
@@ -221,12 +266,6 @@ def main(args):
         # update state
 
     state_mgr.save()
-
-
-
-
-
-
 
 
 
