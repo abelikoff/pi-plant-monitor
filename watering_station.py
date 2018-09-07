@@ -6,19 +6,17 @@
 """
 
 import argparse
-import datetime
+import builtins
 import configparser
+import datetime
 import logging
 import os
 import pickle
 import sys
 import time
-from collections import defaultdict
-
-import dummy_ops as ops
 
 
-__version__ = '1.0'
+__version__ = "1.0"
 
 
 class PotState:
@@ -31,7 +29,7 @@ class PotState:
         s = "["
 
         if self.last_watering_time:
-            s += self.last_watering_time.strftime("last watered: %Y-%m-%d %H:%M:%S")
+            s += self.last_watering_time.strftime("last watered: %Y-%m-%d %H:%M:%S, ")
 
         if self.dry_spell_start_time:
             s += self.dry_spell_start_time.strftime("dry since: %Y-%m-%d %H:%M:%S")
@@ -118,7 +116,7 @@ class Config:
         already_configured_pins = []
 
         for sname in self.pot_names:
-            pot_config = {}
+            pot_config = { "id" : sname }
 
             if "description" in cfg[sname]:
                 pot_config["description"] = cfg[sname]["description"]
@@ -131,7 +129,7 @@ class Config:
                                           "SensorDryLevel",
                                           Config.DEFAULT_SENSOR_DRY_LEVEL,
                                           bounds = [1, 1000000])
-            pot_config['SensorDryLevel'] = value
+            pot_config["SensorDryLevel"] = value
 
             # max dry period
 
@@ -199,10 +197,10 @@ def update_state_and_decide(new_reading, pot_config, pot_state):
         if pot_state.dry_spell_start_time:
             pot_state.dry_spell_start_time = None
             logging.debug("dry spell stopped for pot %s",
-                          pot_config['description'])
+                          pot_config["description"])
         else:
             logging.debug("pot %s still moist enough",
-                          pot_config['description'])
+                          pot_config["description"])
 
         return False
 
@@ -213,13 +211,13 @@ def update_state_and_decide(new_reading, pot_config, pot_state):
     if not pot_state.dry_spell_start_time:
         pot_state.dry_spell_start_time = datetime.datetime.now()
         logging.debug("dry spell started for pot %s",
-                      pot_config['description'])
+                      pot_config["description"])
     else:
         num_dry_hours = datetime.datetime.now() - pot_state.dry_spell_start_time
         num_dry_hours = num_dry_hours.total_seconds() / 3600.0
         logging.debug("dry spell for %.1f hrs for pot %s (since %s)",
                       num_dry_hours,
-                      pot_config['description'],
+                      pot_config["description"],
                       pot_state.dry_spell_start_time.strftime("%Y-%m-%d %H:%M"))
 
     return True
@@ -234,6 +232,12 @@ def main(args):
     config.load(args.config_file)
     pot_names = config.get_pot_names()
 
+    if args.fake_mode:
+        builtins.FAKE_HARDWARE_MODE = True
+
+    import HardwareManager
+    hw_manager = HardwareManager.HardwareManager()
+
     state_mgr = StateManager()
 
     try:
@@ -246,7 +250,7 @@ def main(args):
         pot_config = config.get_pot_config(name)
         pot_state = state_mgr.get_pot_state(name)
 
-        sensor_reading = ops.get_sensor_reading(pot_config)
+        sensor_reading = hw_manager.read_sensor(pot_config)
         pot_state.last_sensor_reading_time = datetime.datetime.now()
         needs_watering = update_state_and_decide(sensor_reading,
                                                  pot_config,
@@ -254,17 +258,18 @@ def main(args):
 
         if needs_watering:
             logging.info("will water pot %s", name)
-            ops.water_pot(pot_config)
+            hw_manager.water_pot(pot_config)
             pot_state.last_watering_time = datetime.datetime.now()
+            logging.debug("pausing before second reading of the sensor")
             time.sleep(SECOND_READING_DELAY)
-            sensor_reading = ops.get_sensor_reading(pot_config)
+            sensor_reading = hw_manager.read_sensor(pot_config)
 
 
 
         # record new data
 
         # update state
-
+    hw_manager.cleanup()
     state_mgr.save()
 
 
@@ -273,34 +278,37 @@ def _parse_args():
     "Parse command line args."
 
     parser = argparse.ArgumentParser(
-        description=globals()['__doc__'],
+        description=globals()["__doc__"],
         formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('-c', '--config-file',
-                        dest='config_file',
+    parser.add_argument("-c", "--config-file",
+                        dest="config_file",
                         default=os.path.expanduser("~/.watering_station.config"),
-                        help='configuration file')
-    parser.add_argument('-D', '--debug', action='store_true',
-                        dest='debug_mode', default=False,
-                        help='debug mode')
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        dest='verbose_mode', default=False,
-                        help='verbose mode')
-    parser.add_argument('--version', action='version',
-                        version='%(prog)s {version}'.format(version=
+                        help="configuration file")
+    parser.add_argument("-D", "--debug", action="store_true",
+                        dest="debug_mode", default=False,
+                        help="debug mode")
+    parser.add_argument("--fake", action="store_true",
+                        dest="fake_mode", default=False,
+                        help="Fake hardware operations")
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        dest="verbose_mode", default=False,
+                        help="verbose mode")
+    parser.add_argument("--version", action="version",
+                        version="%(prog)s {version}".format(version=
                                                             __version__))
-    parser.add_argument('args', type=str, nargs='*',
-                        help='Arguments to the program')
+    parser.add_argument("args", type=str, nargs="*",
+                        help="Arguments to the program")
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     OPTIONS = _parse_args()
 
     if OPTIONS.debug_mode:
         logging.basicConfig(level=logging.DEBUG,
-                            format='%(levelname)s: %(message)s')
+                            format="%(levelname)s: %(message)s")
     else:
-        logging.basicConfig(format='%(levelname)s: %(message)s')
+        logging.basicConfig(format="%(levelname)s: %(message)s")
 
     try:
         main(OPTIONS)
