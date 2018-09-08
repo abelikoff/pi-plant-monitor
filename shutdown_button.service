@@ -1,0 +1,17 @@
+# Systemd configuration for shutdown_button script
+
+[Unit]
+Description=Shutdown button monitor
+After=network.target
+After=systemd-user-sessions.service
+After=network-online.target
+
+[Service]
+#Type=idle
+User=pi
+ExecStart=/home/pi/bin/shutdown_button
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
