@@ -5,7 +5,7 @@
 </div>
 
 This is a relatively simple system for monitoring and watering
-multiple pots.
+multiple (up to 4) pots.
 
 
 ## Hardware
@@ -60,7 +60,7 @@ for 5 seconds (to avoid accidental presses). The script is called
 * Copy (or symlink) `shutdown_button` into `~/bin` directory of user
   **pi**.
 
-* By default the script assumes the button is connected to GPIO pi 25.
+* By default the script assumes the button is connected to GPIO pin 25.
 If it is not, change the `shutdown_button.service` file to pass an
 appropriate value via `--pin` option to the script.
 
