@@ -1,8 +1,8 @@
 # Raspberry Pi Plant Monitor
 
-![Installed
- system](https://github.com/abelikoff/pi-plant-monitor/raw/master/misc/installed.jpg | width=640)
-
+<div style="text-align:center">
+<img src="https://github.com/abelikoff/pi-plant-monitor/raw/master/misc/installed.jpg" width="640">
+</div>
 
 This is a relatively simple system for monitoring and watering
 multiple pots.
@@ -11,19 +11,20 @@ multiple pots.
 ## Hardware
 
 For the bill of components and assembly instructions see the
-[blog post](http://belikoff.net/using-raspberry-pi-to-water-plants)
+[blog post](http://belikoff.net/using-raspberry-pi-to-water-plants).
 
 
 ## Installation
 
-In order to use the ADC, you need to enable I2C interface via
-`raspi-config`.
+IMPOIRTANT: in order to use the ADC, you need to enable I2C interface
+via `raspi-config`.
 
-The system is operated by running `watering_station` periodically
-(i.e. hourly), which will keep track of the state of each pot and
-initiate watering when needed.
+The system is operated by running
+[watering_station](https://github.com/abelikoff/pi-plant-monitor/raw/master/watering_station)
+periodically (i.e. hourly), which will keep track of the state of each
+pot and initiate watering when needed.
 
-As user `pi` run `crontab -e` and add the invocation of
+As user **pi** run `crontab -e` and add the invocation of
 `watering_station` to your crontab. In my case, it looks like:
 
 ```bash
@@ -53,15 +54,15 @@ is super convenient.
 To make it slightly easier, I've added a hardware button connected to
 GPIO and a script to power the device off when the button was pressed
 for 5 seconds (to avoid accidental presses). The script is called
-[shutdown_button](../blob/master/shutdown_button) (shocking, I
-know). To install and activate, do the following:
+[shutdown_button](https://github.com/abelikoff/pi-plant-monitor/raw/master/shutdown_button)
+(shocking, I know). To install and activate, do the following:
 
 * Copy (or symlink) `shutdown_button` into `~/bin` directory of user
-  *pi*.
+  **pi**.
 
-* By default the script assumes the button is connected to GPIO pin
-  25. If it is not, change the `shutdown_button.service` file to pass
-  an appropriate value via `--pin` option to the script.
+* By default the script assumes the button is connected to GPIO pi 25.
+If it is not, change the `shutdown_button.service` file to pass an
+appropriate value via `--pin` option to the script.
 
 * Set up `systemd` configuration for the script and start it:
 
