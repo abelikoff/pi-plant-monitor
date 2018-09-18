@@ -25,6 +25,7 @@ import argparse
 import builtins
 import configparser
 import datetime
+import importlib
 import logging
 import os
 import pickle
@@ -102,6 +103,7 @@ class Config:
     def __init__(self):
         self.pot_names = []
         self.pot_configs = {}
+        self.update_processor = None
 
 
     def get_pot_names(self):
@@ -187,6 +189,11 @@ class Config:
             self.pot_configs[sname] = pot_config
 
 
+        if "update_processor" in cfg["general"]:
+            class_name = cfg["general"]["update_processor"]
+            self.update_processor = importlib.import_module(class_name).get_instance()
+
+
     def _parse_parameter(self, cfg, key, default_val, bounds=None):
         if key in cfg:
             value = int(cfg[key])
@@ -265,11 +272,16 @@ def main(args):
     except Exception as ex:
         state_mgr.create_new_state(pot_names)
 
+    update_info = { "timestamp" : datetime.datetime.now(), "pots" : { } }
+
     for name in pot_names:
         pot_config = config.get_pot_config(name)
         pot_state = state_mgr.get_pot_state(name)
+        pot_update_data = { }
 
         sensor_reading = hw_manager.read_sensor(pot_config)
+        pot_update_data["sensor_reading"] = sensor_reading
+        pot_update_data["cutoff_value"] = pot_config["SensorDryLevel"]
         needs_watering = update_state_and_decide(sensor_reading,
                                                  pot_config,
                                                  pot_state)
@@ -281,12 +293,22 @@ def main(args):
             if args.mode != "dryrun":
                 hw_manager.water_pot(pot_config)
                 pot_state.last_watering_time = datetime.datetime.now()
+                pot_update_data["watered"] = True
                 logging.debug("pausing before second reading of the sensor")
-                time.sleep(SECOND_READING_DELAY)
+
+                if args.mode != "fake":
+                    time.sleep(SECOND_READING_DELAY)
+
                 sensor_reading = hw_manager.read_sensor(pot_config)
+                pot_update_data["second_reading"] = sensor_reading
                 update_state_and_decide(sensor_reading, pot_config, pot_state)
 
+        update_info["pots"][name] = pot_update_data
+
     state_mgr.save()
+
+    if config.update_processor:
+        config.update_processor.update(update_info)
 
 
 def _parse_args():
