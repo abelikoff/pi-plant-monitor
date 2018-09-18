@@ -24,8 +24,7 @@ def get_instance():
 
 class UpdateCSVLogger(UpdateProcessor):
     def __init__(self):
-        #self.file = open(os.path.expanduser("~/log/stats.csv"), "a")
-        self.file = open(os.path.expanduser("~/stats.csv"), "a")
+        self.file = open(os.path.expanduser("~/log/stats.csv"), "a")
 
 
     def update(self, update_data):
