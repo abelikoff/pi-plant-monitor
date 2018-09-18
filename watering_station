@@ -103,7 +103,7 @@ class Config:
     def __init__(self):
         self.pot_names = []
         self.pot_configs = {}
-        self.update_processor = None
+        self.stats_processor = None
 
 
     def get_pot_names(self):
@@ -200,13 +200,13 @@ class Config:
             self.pot_configs[sname] = pot_config
 
 
-        if "update_processor" in cfg["general"]:
-            class_name = cfg["general"]["update_processor"]
+        if "stats_processor" in cfg["general"]:
+            class_name = cfg["general"]["stats_processor"]
 
             if class_name in cfg:
-                self.update_processor = importlib.import_module(class_name).get_instance(cfg[class_name])
+                self.stats_processor = importlib.import_module(class_name).get_instance(cfg[class_name])
             else:
-                self.update_processor = importlib.import_module(class_name).get_instance()
+                self.stats_processor = importlib.import_module(class_name).get_instance()
 
 
     def _parse_parameter(self, cfg, key, default_val, bounds=None):
@@ -333,8 +333,8 @@ def main(args):
 
     state_mgr.save()
 
-    if config.update_processor:
-        config.update_processor.update(update_info)
+    if config.stats_processor:
+        config.stats_processor.process(update_info)
 
 
 def _parse_args():

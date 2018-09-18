@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Base class (interface) for an update processor.
+Base class (interface) for a stats processor.
 
 """
 
@@ -15,20 +15,17 @@ def get_instance():
     """Return an instance of a processor class.
     """
 
-    return UpdateProcessor()
+    return StatsProcessor()
 
 
-class UpdateProcessor:
-    #def __init__(self):
-    #    raise Exception("not implemented")
+class StatsProcessor:
+    def process(self, stats):
 
-
-    def update(self, update_data):
         """
-        Process an update.
+        Process new stats.
 
         Args:
-        update_data: a dictionary with update information.
+        stats: a dictionary in the following format.
 
         {
             "timestamp" : datetime : update timestamp

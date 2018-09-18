@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-An update processor that saves updates in a CSV file
+A stats processor that saves updates in a CSV file
 
 """
 
@@ -11,7 +11,7 @@ __copyright__ = "Copyright 2018, Alexander L. Belikoff"
 __license__ = "GPLv3"
 
 
-from UpdateProcessor import UpdateProcessor
+from StatsProcessor import StatsProcessor
 import os
 
 
@@ -19,10 +19,10 @@ def get_instance(cfg=None):
     """Return an instance of a processor class.
     """
 
-    return UpdateCSVLogger(cfg)
+    return StatsCSVLogger(cfg)
 
 
-class UpdateCSVLogger(UpdateProcessor):
+class StatsCSVLogger(StatsProcessor):
     def __init__(self, cfg):
         if cfg and "file" in cfg:
             output_file = os.path.expanduser(cfg["file"])
@@ -37,18 +37,18 @@ class UpdateCSVLogger(UpdateProcessor):
             self.timestamp_format = "%Y-%m-%d %H:%M:%S"
 
 
-    def update(self, update_data):
+    def process(self, stats):
         """
-        Process an update.
+        Process new stats.
 
-        See UpdateProcessor.update() for information on arguments.
+        See StatsProcessor.process() for information on arguments.
         """
 
-        s = update_data["timestamp"].strftime(self.timestamp_format + ",")
+        s = stats["timestamp"].strftime(self.timestamp_format + ",")
         separator = ""
 
-        for pot in sorted(update_data["pots"].keys()):
-            pot_data = update_data["pots"][pot]
+        for pot in sorted(stats["pots"].keys()):
+            pot_data = stats["pots"][pot]
 
             if "watered" in pot_data:
                 watered = '"Yes"'
@@ -58,11 +58,11 @@ class UpdateCSVLogger(UpdateProcessor):
                 second_reading = ""
 
             s += '%s"%s",%d,%d,%s,%s' % (separator,
-                                          pot,
-                                          pot_data["sensor_reading"],
-                                          pot_data["cutoff_value"],
-                                          watered,
-                                          second_reading)
+                                         pot,
+                                         pot_data["sensor_reading"],
+                                         pot_data["cutoff_value"],
+                                         watered,
+                                         second_reading)
             separator = ','
 
         self.file.write(s + '\n')

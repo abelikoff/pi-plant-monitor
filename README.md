@@ -50,11 +50,11 @@ The system implements a simple but relatively flexible framework for
 collecting the sensor and watering stats. Once stats are gathered,
 they can be passed to a _stats processor_ object, which can perform
 custom processing of such stats. Such custom stats processor class is
-implemented as a subclass of `UpdateProcessor`. Two example processors
+implemented as a subclass of `StatsProcessor`. Two example processors
 are provided:
 
-* `UpdatePrinter` simply prints the stats on _stdout_.
-* `UpdateCSVLogger` appends the stats to a CSV file. It also
+* `StatsPrinter` simply prints the stats on _stdout_.
+* `StatsCSVLogger` appends the stats to a CSV file. It also
   demonstrates how such processor can be configured via a special
   section in the configuration file.
 
@@ -62,7 +62,7 @@ It should be easy to implement a class to do more elaborate stats
 processing, e.g. uploading them to Google BigQuery, saving in a
 database etc.
 
-Stats processor is specified via `update_processor` directive in the
+Stats processor is specified via `stats_processor` directive in the
 `[general]` section of the configuration file.
 
 
