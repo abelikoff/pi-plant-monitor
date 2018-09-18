@@ -186,6 +186,17 @@ class Config:
             pot_config["RelayBCMPin"] = value
             already_configured_pins.append(value)
 
+
+            # Time between waterings
+
+            value = self._parse_parameter(cfg["general"],
+                                          "time_between_waterings",
+                                          -1,
+                                          bounds=[1, 240])
+
+            if value > 0:
+                pot_config["time_between_waterings"] = value
+
             self.pot_configs[sname] = pot_config
 
 
@@ -247,6 +258,17 @@ def update_state_and_decide(new_reading, pot_config, pot_state):
                      num_dry_hours,
                      pot_config["description"],
                      pot_state.dry_spell_start_time.strftime("%Y-%m-%d %H:%M"))
+
+    # enforce minimum time between waterings
+
+    if "time_between_waterings" in pot_config and pot_state.last_watering_time:
+        num_hours = datetime.datetime.now() - pot_state.last_watering_time
+        num_hours = num_hours.total_seconds() / 3600.0
+
+        if num_hours < pot_config["time_between_waterings"]:
+            logging.warn("pot '%s' was watered %.2f hours ago - not watering",
+                         pot_config["description"], num_hours)
+            return False
 
     return True
 
