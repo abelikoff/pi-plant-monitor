@@ -15,16 +15,26 @@ from UpdateProcessor import UpdateProcessor
 import os
 
 
-def get_instance():
+def get_instance(cfg=None):
     """Return an instance of a processor class.
     """
 
-    return UpdateCSVLogger()
+    return UpdateCSVLogger(cfg)
 
 
 class UpdateCSVLogger(UpdateProcessor):
-    def __init__(self):
-        self.file = open(os.path.expanduser("~/log/stats.csv"), "a")
+    def __init__(self, cfg):
+        if cfg and "file" in cfg:
+            output_file = os.path.expanduser(cfg["file"])
+        else:
+            output_file = "watering_stats.csv"
+
+        self.file = open(output_file, "a")
+
+        if cfg and "timestamp_format" in cfg:
+            self.timestamp_format = cfg["timestamp_format"]
+        else:
+            self.timestamp_format = "%Y-%m-%d %H:%M:%S"
 
 
     def update(self, update_data):
@@ -34,7 +44,7 @@ class UpdateCSVLogger(UpdateProcessor):
         See UpdateProcessor.update() for information on arguments.
         """
 
-        s = update_data["timestamp"].strftime("%Y-%m-%d %H:%M:%S,")
+        s = update_data["timestamp"].strftime(self.timestamp_format + ",")
         separator = ""
 
         for pot in sorted(update_data["pots"].keys()):

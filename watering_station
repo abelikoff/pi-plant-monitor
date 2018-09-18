@@ -202,7 +202,11 @@ class Config:
 
         if "update_processor" in cfg["general"]:
             class_name = cfg["general"]["update_processor"]
-            self.update_processor = importlib.import_module(class_name).get_instance()
+
+            if class_name in cfg:
+                self.update_processor = importlib.import_module(class_name).get_instance(cfg[class_name])
+            else:
+                self.update_processor = importlib.import_module(class_name).get_instance()
 
 
     def _parse_parameter(self, cfg, key, default_val, bounds=None):
